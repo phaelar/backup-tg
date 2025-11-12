@@ -1,0 +1,33 @@
+# Telegram session files (contain authentication tokens)
+*.session
+*.session-journal
+
+# Environment variables (contain API credentials)
+.env
+
+# Backup directories (contain private messages and media)
+deleted_messages_backup/
+current_messages_backup/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

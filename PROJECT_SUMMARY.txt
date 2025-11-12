@@ -1,0 +1,211 @@
+================================================================================
+    TELEGRAM GROUP BACKUP & RECOVERY TOOL
+================================================================================
+
+PROJECT OVERVIEW:
+-----------------
+A complete solution to recover deleted Telegram messages (within 48 hours),
+backup current messages, and restore everything to a new group.
+
+YOUR SITUATION:
+--------------
+✗ Admin accidentally deleted your messages
+✓ Within 48-hour recovery window
+→ Need to recover deleted + backup current + restore to new group
+
+CREATED FILES:
+--------------
+Scripts:
+  1_retrieve_deleted_messages.py  → Recover deleted messages via Admin Log
+  2_backup_current_messages.py    → Backup all current messages & media
+  3_restore_messages.py           → Restore messages to new group
+
+Quick Start:
+  quick_start.sh                  → Interactive menu (Linux/macOS)
+  quick_start.bat                 → Interactive menu (Windows)
+
+Configuration:
+  .env.example                    → Template for API credentials
+  requirements.txt                → Python dependencies (telethon)
+
+Documentation:
+  README.md                       → Full technical documentation
+  USAGE_GUIDE.md                  → Complete step-by-step guide
+  QUICKSTART.md                   → 5-minute quick start guide
+  PROJECT_SUMMARY.txt             → This file
+
+Security:
+  .gitignore                      → Protect sensitive files from git
+
+SETUP CHECKLIST:
+----------------
+[ ] 1. Install Python 3.7+
+[ ] 2. Install dependencies: pip install -r requirements.txt
+[ ] 3. Get API credentials from https://my.telegram.org
+[ ] 4. Copy .env.example to .env and fill in credentials
+[ ] 5. Run script 1 to recover deleted messages
+[ ] 6. Run script 2 to backup current messages
+[ ] 7. Create new Telegram group
+[ ] 8. Run script 3 to restore everything
+
+QUICK START COMMANDS:
+---------------------
+# Setup
+cp .env.example .env
+# Edit .env with your credentials
+pip install -r requirements.txt
+
+# Option A: Interactive (Easiest)
+./quick_start.sh
+
+# Option B: Direct Execution
+python 1_retrieve_deleted_messages.py
+python 2_backup_current_messages.py
+python 3_restore_messages.py
+
+HOW IT WORKS:
+-------------
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 1: RECOVER DELETED                                    │
+│  ───────────────────────────────────────────────────────    │
+│  Input:  Original group @username                           │
+│  Action: Query Admin Log API (48-hour window)               │
+│  Output: deleted_messages_backup/                           │
+│          ├── deleted_messages_YYYYMMDD_HHMMSS.json          │
+│          └── deleted_media/                                 │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 2: BACKUP CURRENT                                     │
+│  ───────────────────────────────────────────────────────    │
+│  Input:  Original group @username                           │
+│  Action: Retrieve all messages via messages.getHistory      │
+│  Output: current_messages_backup/                           │
+│          ├── current_messages_YYYYMMDD_HHMMSS.json          │
+│          └── current_media/                                 │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  STEP 3: RESTORE TO NEW GROUP                               │
+│  ───────────────────────────────────────────────────────    │
+│  Input:  New group @username + both backup JSON files       │
+│  Action: Send messages with formatted timestamps            │
+│  Output: Restored group with all messages chronologically   │
+│                                                              │
+│  Message Format:                                            │
+│  📅 2024-11-12 15:30:45 | 👤 John Doe                       │
+│  --------------------------------------------------          │
+│  Original message text here                                 │
+└─────────────────────────────────────────────────────────────┘
+
+KEY FEATURES:
+-------------
+✓ Recovers deleted messages within 48-hour window
+✓ Downloads all media files (photos, videos, documents)
+✓ Preserves message order, timestamps, and author info
+✓ Handles rate limiting automatically
+✓ Supports forwarded messages and replies
+✓ Merges deleted + current messages chronologically
+✓ Progress tracking and error recovery
+✓ Session caching (no re-auth needed)
+
+LIMITATIONS:
+------------
+⚠ 48-hour window for deleted message recovery
+⚠ Requires admin access to source group
+⚠ Subject to Telegram rate limits
+⚠ Large groups may take hours to restore
+⚠ Some media may be expired (very old messages)
+
+SECURITY NOTES:
+---------------
+🔒 KEEP SECRET:
+   - .env file (API credentials)
+   - *.session files (authentication tokens)
+   - Backup JSON files (private messages)
+
+🚫 NEVER COMMIT TO GIT:
+   - Already protected by .gitignore
+   - Double-check before pushing to any repository
+
+TECHNICAL DETAILS:
+------------------
+API:          Telegram MTProto API
+Library:      Telethon (Python)
+Auth:         Phone number + verification code
+Recovery:     channels.getAdminLog (ChannelAdminLogEventActionDeleteMessage)
+Backup:       messages.getHistory with iter_messages
+Restore:      client.send_message / client.send_file
+Rate Limits:  1s delay (text), 2s delay (media), auto-retry on flood
+
+BACKUP FILE FORMAT:
+-------------------
+JSON structure:
+{
+  "group_id": 123456789,
+  "group_title": "My Group",
+  "backed_up_at": "2024-11-12T16:00:00",
+  "total_messages": 1000,
+  "messages": [
+    {
+      "message_id": 1,
+      "date": "2024-01-01T12:00:00",
+      "sender_id": 987654321,
+      "sender_name": "John Doe",
+      "text": "Hello world",
+      "media_type": "MessageMediaPhoto",
+      "media_path": "deleted_media/photo_1.jpg",
+      "reply_to_msg_id": null,
+      "forward_info": null
+    },
+    ...
+  ]
+}
+
+TROUBLESHOOTING:
+----------------
+Issue: FloodWaitError
+Fix:   Script auto-waits. This is normal rate limiting.
+
+Issue: Group not found
+Fix:   Use @username or numeric group ID. Ensure you're a member.
+
+Issue: Admin privileges required
+Fix:   Need admin rights in source group with delete permission.
+
+Issue: No deleted messages found
+Fix:   Messages deleted >48h ago OR not admin OR messages not deleted.
+
+Issue: Session error
+Fix:   Delete *.session files and run again.
+
+ESTIMATED TIMES:
+----------------
+Setup:                 10 minutes (one-time)
+Recover deleted:       5-15 minutes
+Backup current:        Varies by size
+  - 100 messages:      1-2 minutes
+  - 1,000 messages:    5-15 minutes
+  - 10,000 messages:   30-90 minutes
+Restore:               Varies by size
+  - 100 messages:      2-5 minutes
+  - 1,000 messages:    20-50 minutes
+  - 10,000 messages:   3-8 hours
+
+SUPPORT:
+--------
+Documentation:  See README.md, USAGE_GUIDE.md, QUICKSTART.md
+Error Messages: Usually explain the problem clearly
+Verification:   Check credentials in .env, admin access, internet
+
+NEXT STEPS:
+-----------
+1. Read QUICKSTART.md for 5-minute overview
+2. Read USAGE_GUIDE.md for detailed step-by-step instructions
+3. Set up .env file with your API credentials
+4. Run the scripts in order (1 → 2 → 3)
+5. Verify restored messages in new group
+
+================================================================================
+                        GOOD LUCK WITH YOUR RECOVERY! 🚀
+================================================================================
