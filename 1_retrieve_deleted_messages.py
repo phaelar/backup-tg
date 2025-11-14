@@ -46,11 +46,37 @@ async def get_group_entity(client, group_identifier):
         Group entity
     """
     try:
+        # If it looks like a numeric ID, convert to int
+        if isinstance(group_identifier, str) and group_identifier.lstrip('-').isdigit():
+            group_identifier = int(group_identifier)
+            print(f"Converted to integer: {group_identifier}")
+
         entity = await client.get_entity(group_identifier)
         return entity
+    except ValueError as e:
+        # If get_entity fails, try searching through dialogs
+        print(f"Direct lookup failed, searching through your groups...")
+        target_id = int(group_identifier) if isinstance(group_identifier, str) and group_identifier.lstrip('-').isdigit() else None
+
+        async for dialog in client.iter_dialogs():
+            if dialog.is_group or dialog.is_channel:
+                if target_id and dialog.id == target_id:
+                    print(f"Found group in dialogs: {dialog.name}")
+                    return dialog.entity
+
+        print(f"Error getting group entity: {e}")
+        print("\nTroubleshooting tips:")
+        print("1. Make sure you're a member of the group")
+        print("2. Try using the group's @username instead of ID")
+        print("3. Run 'python3 list_groups.py' to see all your groups")
+        print("4. Try getting an invite link from the group and use that")
+        raise
     except Exception as e:
         print(f"Error getting group entity: {e}")
-        print("Make sure you provide the correct group username, invite link, or ID")
+        print("\nTroubleshooting tips:")
+        print("1. Make sure you're a member of the group")
+        print("2. Try using the group's @username instead of ID")
+        print("3. Run 'python3 list_groups.py' to see all your groups")
         raise
 
 
@@ -101,8 +127,11 @@ async def extract_message_data(client, message, media_dir, event_date):
     # Get sender information
     sender_name = "Unknown"
     sender_id = None
+    sender_username = None
     if message.sender:
         sender_id = message.sender.id
+        if hasattr(message.sender, 'username') and message.sender.username:
+            sender_username = message.sender.username
         if hasattr(message.sender, 'first_name'):
             sender_name = message.sender.first_name
             if hasattr(message.sender, 'last_name') and message.sender.last_name:
@@ -116,6 +145,7 @@ async def extract_message_data(client, message, media_dir, event_date):
         'deleted_date': event_date.isoformat() if event_date else None,
         'sender_id': sender_id,
         'sender_name': sender_name,
+        'sender_username': sender_username,
         'text': message.message or "",
         'media_type': message.media.__class__.__name__ if message.media else None,
         'media_path': media_path,
@@ -160,41 +190,70 @@ async def retrieve_deleted_messages(group_identifier):
         group = await get_group_entity(client, group_identifier)
         print(f"Group found: {group.title} (ID: {group.id})")
 
+        # Check if it's a channel/supergroup (required for admin log)
+        from telethon.tl.types import Chat, Channel
+        if isinstance(group, Chat):
+            print("\n" + "=" * 80)
+            print("ERROR: This is a regular group chat, not a supergroup or channel.")
+            print("=" * 80)
+            print("\nAdmin log (for retrieving deleted messages) only works with:")
+            print("  - Supergroups")
+            print("  - Channels")
+            print("\nYour group is a regular chat (limited to 200 members).")
+            print("\nOptions:")
+            print("  1. Convert your group to a supergroup in Telegram settings")
+            print("     (Group Info -> Edit -> Group Type -> Supergroup)")
+            print("  2. Use script 2 (backup_current_messages.py) to backup current messages")
+            print("     (This won't recover deleted messages, only current ones)")
+            print("\nNote: Once converted to a supergroup, you cannot convert back.")
+            return
+
         # Retrieve admin log events
         print("\nRetrieving admin log (deleted messages)...")
         deleted_messages = []
 
-        # Get admin log with filter for deleted messages
-        admin_log = await client(GetAdminLogRequest(
-            channel=group,
-            q='',  # No search query
-            max_id=0,
-            min_id=0,
-            limit=100,  # Retrieve up to 100 events at a time
-        ))
-
-        total_events = len(admin_log.events)
-        print(f"Found {total_events} admin log events")
-
+        # Paginate through all admin log events
+        max_id = 0
+        total_events_fetched = 0
         processed = 0
-        for event in admin_log.events:
-            # Filter for message deletion events
-            if isinstance(event.action, ChannelAdminLogEventActionDeleteMessage):
-                processed += 1
-                print(f"Processing deleted message {processed}...", end='\r')
 
-                message = event.action.message
-                if isinstance(message, Message):
-                    message_data = await extract_message_data(
-                        client,
-                        message,
-                        MEDIA_DIR,
-                        event.date
-                    )
-                    message_data['deleted_by_user_id'] = event.user_id
-                    deleted_messages.append(message_data)
+        while True:
+            # Get admin log with filter for deleted messages
+            admin_log = await client(GetAdminLogRequest(
+                channel=group,
+                q='',  # No search query
+                max_id=max_id,
+                min_id=0,
+                limit=100,  # Retrieve up to 100 events at a time
+            ))
 
-        print(f"\nFound {len(deleted_messages)} deleted messages")
+            if not admin_log.events:
+                break  # No more events to fetch
+
+            total_events_fetched += len(admin_log.events)
+            print(f"Fetched {total_events_fetched} admin log events...", end='\r')
+
+            for event in admin_log.events:
+                # Filter for message deletion events
+                if isinstance(event.action, ChannelAdminLogEventActionDeleteMessage):
+                    processed += 1
+                    print(f"Processing deleted message {processed}...", end='\r')
+
+                    message = event.action.message
+                    if isinstance(message, Message):
+                        message_data = await extract_message_data(
+                            client,
+                            message,
+                            MEDIA_DIR,
+                            event.date
+                        )
+                        message_data['deleted_by_user_id'] = event.user_id
+                        deleted_messages.append(message_data)
+
+            # Get the last event's ID for pagination
+            max_id = admin_log.events[-1].id
+
+        print(f"\nFound {len(deleted_messages)} deleted messages from {total_events_fetched} total admin log events")
 
         # Save to JSON file
         output_data = {

@@ -44,11 +44,37 @@ async def get_group_entity(client, group_identifier):
         Group entity
     """
     try:
+        # If it looks like a numeric ID, convert to int
+        if isinstance(group_identifier, str) and group_identifier.lstrip('-').isdigit():
+            group_identifier = int(group_identifier)
+            print(f"Converted to integer: {group_identifier}")
+
         entity = await client.get_entity(group_identifier)
         return entity
+    except ValueError as e:
+        # If get_entity fails, try searching through dialogs
+        print(f"Direct lookup failed, searching through your groups...")
+        target_id = int(group_identifier) if isinstance(group_identifier, str) and group_identifier.lstrip('-').isdigit() else None
+
+        async for dialog in client.iter_dialogs():
+            if dialog.is_group or dialog.is_channel:
+                if target_id and dialog.id == target_id:
+                    print(f"Found group in dialogs: {dialog.name}")
+                    return dialog.entity
+
+        print(f"Error getting group entity: {e}")
+        print("\nTroubleshooting tips:")
+        print("1. Make sure you're a member of the group")
+        print("2. Try using the group's @username instead of ID")
+        print("3. Run 'python3 list_groups.py' to see all your groups")
+        print("4. Try getting an invite link from the group and use that")
+        raise
     except Exception as e:
         print(f"Error getting group entity: {e}")
-        print("Make sure you provide the correct group username, invite link, or ID")
+        print("\nTroubleshooting tips:")
+        print("1. Make sure you're a member of the group")
+        print("2. Try using the group's @username instead of ID")
+        print("3. Run 'python3 list_groups.py' to see all your groups")
         raise
 
 
@@ -98,16 +124,17 @@ async def extract_message_data(client, message, media_dir):
     # Get sender information
     sender_name = "Unknown"
     sender_id = None
+    sender_username = None
     if message.sender:
         sender_id = message.sender.id
+        if hasattr(message.sender, 'username') and message.sender.username:
+            sender_username = message.sender.username
         if hasattr(message.sender, 'first_name'):
             sender_name = message.sender.first_name
             if hasattr(message.sender, 'last_name') and message.sender.last_name:
                 sender_name += f" {message.sender.last_name}"
         elif hasattr(message.sender, 'title'):
             sender_name = message.sender.title
-        elif hasattr(message.sender, 'username'):
-            sender_name = message.sender.username
 
     # Get edit date if message was edited
     edit_date = message.edit_date.isoformat() if message.edit_date else None
@@ -127,6 +154,7 @@ async def extract_message_data(client, message, media_dir):
         'edit_date': edit_date,
         'sender_id': sender_id,
         'sender_name': sender_name,
+        'sender_username': sender_username,
         'text': message.message or "",
         'media_type': message.media.__class__.__name__ if message.media else None,
         'media_path': media_path,
