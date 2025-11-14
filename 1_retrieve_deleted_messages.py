@@ -10,6 +10,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
 from telethon import TelegramClient
 from telethon.tl.functions.channels import GetAdminLogRequest
 from telethon.tl.types import (
@@ -17,6 +18,9 @@ from telethon.tl.types import (
     InputChannel,
     Message
 )
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configuration
 API_ID = os.getenv('TELEGRAM_API_ID')  # Get from https://my.telegram.org
