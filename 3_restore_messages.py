@@ -23,7 +23,7 @@ load_dotenv()
 API_ID = os.getenv('TELEGRAM_API_ID')  # Get from https://my.telegram.org
 API_HASH = os.getenv('TELEGRAM_API_HASH')  # Get from https://my.telegram.org
 PHONE = os.getenv('TELEGRAM_PHONE')  # Your phone number with country code
-SESSION_NAME = 'telegram_restore_session'
+SESSION_NAME = 'sessions/telegram_restore_session'
 
 # Rate limiting configuration: 15 requests per minute = 1 request every 4 seconds
 MESSAGE_DELAY = 4.0  # Delay between messages (seconds) - 15 req/min
@@ -36,17 +36,43 @@ async def get_group_entity(client, group_identifier):
 
     Args:
         client: TelegramClient instance
-        group_identifier: Group username, invite link, or group ID
+        group_identifier: Group username (e.g., @groupname), invite link, or group ID
 
     Returns:
         Group entity
     """
     try:
+        # If it looks like a numeric ID, convert to int
+        if isinstance(group_identifier, str) and group_identifier.lstrip('-').isdigit():
+            group_identifier = int(group_identifier)
+            print(f"Converted to integer: {group_identifier}")
+
         entity = await client.get_entity(group_identifier)
         return entity
+    except ValueError as e:
+        # If get_entity fails, try searching through dialogs
+        print(f"Direct lookup failed, searching through your groups...")
+        target_id = int(group_identifier) if isinstance(group_identifier, str) and group_identifier.lstrip('-').isdigit() else None
+
+        async for dialog in client.iter_dialogs():
+            if dialog.is_group or dialog.is_channel:
+                if target_id and dialog.id == target_id:
+                    print(f"Found group in dialogs: {dialog.name}")
+                    return dialog.entity
+
+        print(f"Error getting group entity: {e}")
+        print("\nTroubleshooting tips:")
+        print("1. Make sure you're a member of the group")
+        print("2. Try using the group's @username instead of ID")
+        print("3. Run 'python3 list_groups.py' to see all your groups")
+        print("4. Try getting an invite link from the group and use that")
+        raise
     except Exception as e:
         print(f"Error getting group entity: {e}")
-        print("Make sure you provide the correct group username, invite link, or ID")
+        print("\nTroubleshooting tips:")
+        print("1. Make sure you're a member of the group")
+        print("2. Try using the group's @username instead of ID")
+        print("3. Run 'python3 list_groups.py' to see all your groups")
         raise
 
 
@@ -298,28 +324,44 @@ def main():
     print("to a new Telegram group with timestamps and author names.")
     print()
 
-    # Get target group
-    target_group = input("Enter target group username (e.g., @newgroup) or group ID: ").strip()
-    if not target_group:
-        print("Error: Target group is required")
-        return
+    # Get target group from environment or prompt
+    target_group = os.getenv('TARGET_GROUP')
+    if target_group:
+        print(f"Target group (from env): {target_group}")
+    else:
+        target_group = input("Enter target group username (e.g., @newgroup) or group ID: ").strip()
+        if not target_group:
+            print("Error: Target group is required")
+            return
 
-    # Get backup files
-    print("\nEnter backup file paths (one per line, empty line to finish):")
-    backup_files = []
-    while True:
-        file_path = input(f"Backup file {len(backup_files) + 1}: ").strip()
-        if not file_path:
-            break
-        backup_files.append(file_path)
+    # Get backup files from environment or prompt
+    backup_files_env = os.getenv('BACKUP_FILES')
+    if backup_files_env:
+        backup_files = [f.strip() for f in backup_files_env.split(',') if f.strip()]
+        print(f"Backup files (from env): {len(backup_files)} file(s)")
+        for f in backup_files:
+            print(f"  - {f}")
+    else:
+        print("\nEnter backup file paths (one per line, empty line to finish):")
+        backup_files = []
+        while True:
+            file_path = input(f"Backup file {len(backup_files) + 1}: ").strip()
+            if not file_path:
+                break
+            backup_files.append(file_path)
 
     if not backup_files:
         print("Error: At least one backup file is required")
         return
 
-    # Ask about merging
-    merge = input("\nMerge and sort messages by date? (yes/no) [yes]: ").strip().lower()
-    merge = merge != 'no'
+    # Get merge setting from environment or prompt
+    merge_env = os.getenv('MERGE_MESSAGES')
+    if merge_env:
+        merge = merge_env.lower() in ('yes', 'true', '1')
+        print(f"Merge and sort messages (from env): {'yes' if merge else 'no'}")
+    else:
+        merge = input("\nMerge and sort messages by date? (yes/no) [yes]: ").strip().lower()
+        merge = merge != 'no'
 
     # Run the async function
     asyncio.run(restore_messages(backup_files, target_group, merge))

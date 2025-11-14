@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  telegram-restore:
+    build: .
+    container_name: telegram-restore
+    stdin_open: true
+    tty: true
+    environment:
+      # Telegram API credentials
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
+      - TELEGRAM_PHONE=${TELEGRAM_PHONE}
+      # Restore configuration
+      - TARGET_GROUP=${TARGET_GROUP}
+      - BACKUP_FILES=${BACKUP_FILES}
+      - MERGE_MESSAGES=${MERGE_MESSAGES:-yes}
+    volumes:
+      # Mount backup directories (deleted messages)
+      - ./deleted_messages_backup:/app/backups/deleted_messages_backup:ro
+      # Mount backup directories (current messages)
+      - ./current_messages_backup:/app/backups/current_messages_backup:ro
+      # Mount session directory to persist login
+      - ./sessions:/app/sessions
+    working_dir: /app
+    env_file:
+      - .env

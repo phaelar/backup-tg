@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+
+# Session files
+*.session
+*.session-journal
+
+# Backup directories
+deleted_messages_backup/
+current_messages_backup/
+sessions/
+
+# Environment
+.env
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+*.md
+
+# Other scripts (only include restore script)
+1_retrieve_deleted_messages.py
+2_backup_current_messages.py
+list_groups.py

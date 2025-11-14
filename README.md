@@ -153,6 +153,85 @@ python 3_restore_messages.py
    - `deleted_messages_backup/deleted_messages_20241112_160000.json`
    - `current_messages_backup/current_messages_20241112_160100.json`
 
+## Docker Setup (Script 3 Only)
+
+The restore script (script 3) can be run in Docker for easier deployment and isolation.
+
+### Prerequisites for Docker
+
+- Docker installed on your system
+- Docker Compose installed
+- Your backup files ready
+- `.env` file configured (copy from `.env.example`)
+
+### Configuration
+
+1. **Copy and edit the environment file:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edit `.env` and set the following variables:**
+   ```bash
+   # Telegram API credentials
+   TELEGRAM_API_ID=your_api_id
+   TELEGRAM_API_HASH=your_api_hash
+   TELEGRAM_PHONE=+1234567890
+
+   # Target group to restore messages to
+   TARGET_GROUP=-1001234567890
+
+   # Comma-separated list of backup files (use /app/backups/ prefix)
+   BACKUP_FILES=/app/backups/deleted_messages_backup/deleted_messages_20241112_160000.json,/app/backups/current_messages_backup/current_messages_20241112_160100.json
+
+   # Whether to merge and sort messages by date
+   MERGE_MESSAGES=yes
+   ```
+
+### Running with Docker
+
+1. **Build the Docker image:**
+   ```bash
+   docker-compose build
+   ```
+
+2. **Run the restore script:**
+   ```bash
+   docker-compose run --rm telegram-restore
+   ```
+
+   The script will:
+   - Read configuration from environment variables
+   - Use volumes to access your backup files
+   - Persist the Telegram session in `./sessions/` directory
+   - Show progress as it restores messages
+
+3. **For subsequent runs**, the session will be preserved, so you won't need to authenticate again.
+
+### Docker Directory Structure
+
+```
+backup-tg/
+├── Dockerfile
+├── docker-compose.yml
+├── .env                              # Your configuration
+├── 3_restore_messages.py
+├── requirements.txt
+├── deleted_messages_backup/          # Mounted to /app/backups/deleted_messages_backup
+│   └── *.json
+├── current_messages_backup/          # Mounted to /app/backups/current_messages_backup
+│   └── *.json
+└── sessions/                         # Mounted to /app/sessions (persists login)
+    └── telegram_restore_session.session
+```
+
+### Docker Tips
+
+- **Session persistence**: The `sessions/` directory is mounted to persist your login between runs
+- **Backup files**: Backup directories are mounted as read-only (`:ro`) for safety
+- **Interactive mode**: If you don't set environment variables, the script will prompt you interactively
+- **Manual paths**: Use `/app/backups/` prefix for backup file paths in the `BACKUP_FILES` variable
+
 ## Message Format
 
 Restored messages will have the following format:
